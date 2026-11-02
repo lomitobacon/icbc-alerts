@@ -26,7 +26,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 API = os.environ.get("ICBC_API", "https://onlinebusiness.icbc.com/deas-api/v1")
@@ -198,6 +198,17 @@ def save_state(path, state):
         json.dump(state, f, indent=2)
 
 
+def eligible_from(user, exam_type, earliest):
+    """Later of `earliest` and the driver's earliest eligible date (eed) for this exam."""
+    exams = user.get("eligibleExams") or []
+    for exam in exams:
+        if exam.get("code") == exam_type:
+            eed = (exam.get("eed") or {}).get("date")
+            return max(earliest, date.fromisoformat(eed)) if eed else earliest
+    codes = ", ".join(e.get("code", "?") for e in exams) or "none"
+    raise CheckError(f"ICBC says you aren't eligible to book {exam_type} (eligible: {codes})")
+
+
 def check_once(state):
     exam_type = env("EXAM_TYPE", "7-R-1")
     location = env("LOCATION", "Point Grey")
@@ -205,17 +216,20 @@ def check_once(state):
     today = datetime.now(TZ).date()
 
     token, user = login()
+    # Search like the booking site does: from tomorrow or your earliest eligible
+    # exam date, whichever is later. Earlier slots can't be booked by you.
+    start = eligible_from(user, exam_type, today + timedelta(days=1))
     key = f"{location}|{exam_type}"
     if state.get("pos_key") != key:
-        state["pos_id"], state["pos_name"] = find_pos_id(token, exam_type, today.isoformat(), location)
+        state["pos_id"], state["pos_name"] = find_pos_id(token, exam_type, start.isoformat(), location)
         state["pos_key"] = key
 
-    slots = fetch_slots(token, user, state["pos_id"], exam_type, today.isoformat())
-    wanted = [s for s in slots if today <= date.fromisoformat(s[0]) <= end_date]
+    slots = fetch_slots(token, user, state["pos_id"], exam_type, start.isoformat())
+    wanted = [s for s in slots if start <= date.fromisoformat(s[0]) <= end_date]
     seen = {tuple(s) for s in state.get("seen", [])}
     new = [s for s in wanted if s not in seen]
 
-    print(f"{datetime.now(TZ):%Y-%m-%d %H:%M} {state['pos_name']}: "
+    print(f"{datetime.now(TZ):%Y-%m-%d %H:%M} {state['pos_name']}: searching from {start}, "
           f"{len(slots)} open, {len(wanted)} on or before {end_date}, {len(new)} new")
     if new:
         # Kept short so a text stays within a few SMS segments.
