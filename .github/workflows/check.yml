@@ -2,8 +2,10 @@ name: Check ICBC road test slots
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # GitHub's fastest; real runs often come every 5-15 min
-  workflow_dispatch:         # "Run workflow" button for a manual check
+    # Every 15 min. Cron is UTC, so this covers 6am-8pm Pacific in both PST and
+    # PDT; the "Within active hours?" step skips runs outside that window.
+    - cron: "*/15 0-4,13-23 * * *"
+  workflow_dispatch:         # "Run workflow" button for a manual check (any time)
     inputs:
       summary:
         description: "Send all currently open slots, not just new ones"
@@ -17,11 +19,38 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 5
+    env:
+      ICBC_LAST_NAME: ${{ secrets.ICBC_LAST_NAME }}
+      ICBC_LICENCE: ${{ secrets.ICBC_LICENSE_NUMBER }}
+      ICBC_KEYWORD: ${{ secrets.ICBC_SECRET_WORD }}
+      TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+      TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+      TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
+      SMS_TO: ${{ secrets.SMS_TO }}
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      END_DATE: ${{ vars.END_DATE }}
+      LOCATION: ${{ vars.LOCATION || 'Point Grey' }}
+      EXAM_TYPE: ${{ vars.EXAM_TYPE || '7-R-1' }}
+      SUMMARY: ${{ inputs.summary && 'true' || 'false' }}
     steps:
+      - name: Within active hours?
+        id: gate
+        # Scheduled runs only check 6:00am-8:00pm Vancouver time. GitHub often
+        # starts runs a few minutes late, so the 8:00pm run is allowed until 8:14.
+        run: |
+          now=$(TZ=America/Vancouver date +%H%M)
+          if [ "${{ github.event_name }}" != schedule ] || { [ "$now" -ge 0600 ] && [ "$now" -le 2014 ]; }; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Outside 6am-8pm Pacific (now $now), skipping."
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
 
       - name: Restore seen slots
+        if: steps.gate.outputs.run == 'true'
         uses: actions/cache/restore@v4
         with:
           path: state.json
@@ -29,27 +58,25 @@ jobs:
           restore-keys: icbc-state-
 
       - name: Check for slots
+        id: check
+        if: steps.gate.outputs.run == 'true'
         run: python3 check_slots.py
-        env:
-          ICBC_LAST_NAME: ${{ secrets.ICBC_LAST_NAME }}
-          ICBC_LICENCE: ${{ secrets.ICBC_LICENSE_NUMBER }}
-          ICBC_KEYWORD: ${{ secrets.ICBC_SECRET_WORD }}
-          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
-          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
-          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
-          SMS_TO: ${{ secrets.SMS_TO }}
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-          END_DATE: ${{ vars.END_DATE }}
-          LOCATION: ${{ vars.LOCATION || 'Point Grey' }}
-          EXAM_TYPE: ${{ vars.EXAM_TYPE || '7-R-1' }}
-          # Two checks per run, 2.5 min apart, to fill the gaps between scheduled runs.
-          CHECKS: ${{ inputs.summary && '1' || '2' }}
-          SUMMARY: ${{ inputs.summary && 'true' || 'false' }}
-          CHECK_INTERVAL: "150"
 
       - name: Save seen slots
-        if: always()
+        if: always() && steps.gate.outputs.run == 'true'
         uses: actions/cache/save@v4
         with:
           path: state.json
           key: icbc-state-${{ github.run_id }}
+
+      # The checker alerts on its own errors. This catches anything else that
+      # breaks the run (checkout, cache, timeout) so it never fails silently.
+      - name: Alert if the run itself broke
+        if: failure() && steps.check.outcome != 'failure'
+        run: |
+          msg="GitHub run failed outside the checker: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ -f check_slots.py ]; then
+            python3 check_slots.py --alert "$msg"
+          else
+            curl -s -H "Title: ICBC checker failing" -H "Tags: warning" -d "$msg" "https://ntfy.sh/$NTFY_TOPIC"
+          fi

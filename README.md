@@ -50,15 +50,15 @@ a card) removes that, and costs roughly $1.50 CAD/month for the number plus
 about 1¢ per text.
 
 ## How it behaves
-- Runs every 5 minutes, checking twice per run (2.5 min apart). GitHub often
-  delays scheduled runs, so expect a check every few minutes most of the time,
-  with occasional gaps of 10–20 minutes.
-- Sends one text per batch of newly appeared slots, listing up to 8 of them.
+- Checks every 15 minutes from 6:00am to 8:00pm Vancouver time, every day.
+  GitHub sometimes starts runs a few minutes late. Manual runs work any time.
+- Sends one alert per batch of newly appeared slots, listing up to 8 of them.
   A slot that gets taken and then frees up again alerts again.
-- If a text fails to send, those slots are retried on the next check.
-- If checks start failing (wrong keyword, ICBC changes something, ICBC blocks
-  GitHub), you get one "ICBC checker failing" text, then a "working again"
-  text once it recovers. GitHub also emails you about failed runs.
+- If an alert fails to send, those slots are retried on the next check.
+- If anything breaks (wrong keyword, ICBC changes its site or data, ICBC blocks
+  GitHub, or the GitHub run itself fails), you get one "ICBC checker failing"
+  alert, then a "working again" alert once it recovers. GitHub also emails you
+  about failed runs.
 - To check by hand, or get a list of everything open right now: **Actions** tab → **Check ICBC road test slots** →
   **Run workflow**, and tick "Send all currently open slots" for the full list.
 

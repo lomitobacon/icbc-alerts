@@ -274,20 +274,25 @@ def main():
                 notify("ICBC checker working again", "Slot checks are succeeding again.",
                        priority="low", tags="white_check_mark")
                 state["error"] = None
-        except CheckError as e:
+        except Exception as e:
+            # Anything unexpected too (e.g. ICBC changing its data format), so it never fails silently.
             failed = True
-            print(f"ERROR: {e}", file=sys.stderr)
+            err = str(e) if isinstance(e, CheckError) else f"Unexpected {type(e).__name__}: {e}"
+            print(f"ERROR: {err}", file=sys.stderr)
             # Alert once when it starts failing, not on every run.
             if not state.get("error"):
                 try:
-                    notify("ICBC checker failing", str(e), priority="default", tags="warning")
+                    notify("ICBC checker failing", err, tags="warning")
                 except Exception as ne:
                     print(f"Could not send failure alert: {ne}", file=sys.stderr)
-            state["error"] = str(e)
+            state["error"] = err
         save_state(state_file, state)
 
     sys.exit(1 if failed else 0)
 
 
 if __name__ == "__main__":
-    main()
+    if sys.argv[1:2] == ["--alert"]:
+        notify("ICBC checker failing", " ".join(sys.argv[2:]), tags="warning")
+    else:
+        main()
