@@ -231,6 +231,8 @@ def check_once(state):
 
     print(f"{datetime.now(TZ):%Y-%m-%d %H:%M} {state['pos_name']}: searching from {start}, "
           f"{len(slots)} open, {len(wanted)} on or before {end_date}, {len(new)} new")
+    if slots:
+        print("  earliest: " + "; ".join(describe(*s) for s in slots[:3]))
     if new:
         # Kept short so a text stays within a few SMS segments.
         lines = [describe(*s) for s in new[:8]]
