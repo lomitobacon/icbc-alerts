@@ -59,8 +59,8 @@ about 1¢ per text.
 - If checks start failing (wrong keyword, ICBC changes something, ICBC blocks
   GitHub), you get one "ICBC checker failing" text, then a "working again"
   text once it recovers. GitHub also emails you about failed runs.
-- To check by hand: **Actions** tab → **Check ICBC road test slots** →
-  **Run workflow**.
+- To check by hand, or get a list of everything open right now: **Actions** tab → **Check ICBC road test slots** →
+  **Run workflow**, and tick "Send all currently open slots" for the full list.
 
 ## Things to know
 - **GitHub pauses scheduled workflows after 60 days with no repo activity.**

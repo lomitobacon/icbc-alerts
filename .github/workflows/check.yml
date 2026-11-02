@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "*/5 * * * *"   # GitHub's fastest; real runs often come every 5-15 min
   workflow_dispatch:         # "Run workflow" button for a manual check
+    inputs:
+      summary:
+        description: "Send all currently open slots, not just new ones"
+        type: boolean
+        default: false
 
 concurrency:
   group: icbc-check
@@ -38,7 +43,8 @@ jobs:
           LOCATION: ${{ vars.LOCATION || 'Point Grey' }}
           EXAM_TYPE: ${{ vars.EXAM_TYPE || '7-R-1' }}
           # Two checks per run, 2.5 min apart, to fill the gaps between scheduled runs.
-          CHECKS: "2"
+          CHECKS: ${{ inputs.summary && '1' || '2' }}
+          SUMMARY: ${{ inputs.summary && 'true' || 'false' }}
           CHECK_INTERVAL: "150"
 
       - name: Save seen slots

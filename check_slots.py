@@ -233,7 +233,18 @@ def check_once(state):
           f"{len(slots)} open, {len(wanted)} on or before {end_date}, {len(new)} new")
     if slots:
         print("  earliest: " + "; ".join(describe(*s) for s in slots[:3]))
-    if new:
+    if env("SUMMARY", "false") == "true":
+        # Manual run asking for everything currently open, not just new slots.
+        lines = [describe(*s) for s in wanted[:8]]
+        if len(wanted) > 8:
+            lines.append(f"...and {len(wanted) - 8} more")
+        if not wanted:
+            lines = [f"None on or before {end_date:%b %-d}."]
+            if slots:
+                lines.append(f"Earliest open: {describe(*slots[0])}")
+        notify(f"ICBC: {len(wanted)} open slot{'' if len(wanted) == 1 else 's'} at {location}, "
+               f"{start:%b %-d} to {end_date:%b %-d}", "\n".join(lines), priority="default", tags="calendar")
+    elif new:
         # Kept short so a text stays within a few SMS segments.
         lines = [describe(*s) for s in new[:8]]
         if len(new) > 8:
