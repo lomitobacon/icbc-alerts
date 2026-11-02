@@ -274,7 +274,13 @@ def main():
         if i:
             time.sleep(interval)
         try:
-            check_once(state)
+            try:
+                check_once(state)
+            except CheckError as e:
+                # ICBC sometimes refuses a single request (e.g. a one-off HTTP 403), so retry once.
+                print(f"Retrying in 30s after: {e}", file=sys.stderr)
+                time.sleep(30)
+                check_once(state)
             if state.get("error"):
                 notify("ICBC checker working again", "Slot checks are succeeding again.",
                        priority="low", tags="white_check_mark")
