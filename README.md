@@ -37,8 +37,8 @@ Add four:
 | Name | Value |
 |---|---|
 | `ICBC_LAST_NAME` | your last name |
-| `ICBC_LICENCE` | your driver's licence number |
-| `ICBC_KEYWORD` | your ICBC keyword |
+| `ICBC_LICENSE_NUMBER` | your driver's licence number |
+| `ICBC_SECRET_WORD` | your ICBC keyword |
 | `NTFY_TOPIC` | your ntfy topic name from step 1 |
 
 ### 4. Your date range

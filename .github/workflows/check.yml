@@ -27,8 +27,8 @@ jobs:
         run: python3 check_slots.py
         env:
           ICBC_LAST_NAME: ${{ secrets.ICBC_LAST_NAME }}
-          ICBC_LICENCE: ${{ secrets.ICBC_LICENCE }}
-          ICBC_KEYWORD: ${{ secrets.ICBC_KEYWORD }}
+          ICBC_LICENCE: ${{ secrets.ICBC_LICENSE_NUMBER }}
+          ICBC_KEYWORD: ${{ secrets.ICBC_SECRET_WORD }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           END_DATE: ${{ vars.END_DATE }}
           LOCATION: ${{ vars.LOCATION || 'Point Grey' }}
