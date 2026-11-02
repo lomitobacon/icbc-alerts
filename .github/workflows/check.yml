@@ -32,6 +32,7 @@ jobs:
       END_DATE: ${{ vars.END_DATE }}
       LOCATION: ${{ vars.LOCATION || 'Point Grey' }}
       EXAM_TYPE: ${{ vars.EXAM_TYPE || '7-R-1' }}
+      SHOW_ALL_BEFORE: ${{ vars.SHOW_ALL_BEFORE || '2026-12-01' }}
       SUMMARY: ${{ inputs.summary && 'true' || 'false' }}
     steps:
       - name: Within active hours?

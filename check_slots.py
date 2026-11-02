@@ -198,6 +198,16 @@ def save_state(path, state):
         json.dump(state, f, indent=2)
 
 
+def slot_lines(slots, show_all_before, soonest=3, cap=30):
+    """The 3 soonest slots, or every slot before `show_all_before` if there are more of those."""
+    count = max(soonest, sum(date.fromisoformat(d) < show_all_before for d, _ in slots))
+    shown = min(count, cap)  # cap keeps a text under Twilio's 1,600-character limit
+    lines = [describe(*s) for s in slots[:shown]]
+    if len(slots) > shown:
+        lines.append(f"...and {len(slots) - shown} more")
+    return lines
+
+
 def eligible_from(user, exam_type, earliest):
     """Later of `earliest` and the driver's earliest eligible date (eed) for this exam."""
     exams = user.get("eligibleExams") or []
@@ -233,11 +243,10 @@ def check_once(state):
           f"{len(slots)} open, {len(wanted)} on or before {end_date}, {len(new)} new")
     if slots:
         print("  earliest: " + "; ".join(describe(*s) for s in slots[:3]))
+    show_all_before = date.fromisoformat(env("SHOW_ALL_BEFORE", "2026-12-01"))
     if env("SUMMARY", "false") == "true":
         # Manual run asking for everything currently open, not just new slots.
-        lines = [describe(*s) for s in wanted[:8]]
-        if len(wanted) > 8:
-            lines.append(f"...and {len(wanted) - 8} more")
+        lines = slot_lines(wanted, show_all_before)
         if not wanted:
             lines = [f"None on or before {end_date:%b %-d}."]
             if slots:
@@ -245,13 +254,9 @@ def check_once(state):
         notify(f"ICBC: {len(wanted)} open slot{'' if len(wanted) == 1 else 's'} at {location}, "
                f"{start:%b %-d} to {end_date:%b %-d}", "\n".join(lines), priority="default", tags="calendar")
     elif new:
-        # Kept short so a text stays within a few SMS segments.
-        lines = [describe(*s) for s in new[:8]]
-        if len(new) > 8:
-            lines.append(f"...and {len(new) - 8} more")
         notify(
             f"ICBC: {len(new)} new road test slot{'s' if len(new) > 1 else ''} at {location}",
-            "\n".join(lines),
+            "\n".join(slot_lines(new, show_all_before)),
         )
     # Remember only slots still open, so a slot that is taken and freed again alerts again.
     # Saved after alerting, so a failed alert is retried on the next check.

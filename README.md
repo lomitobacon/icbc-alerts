@@ -30,6 +30,7 @@ Repo → **Settings → Secrets and variables → Actions**.
 | `END_DATE` | the latest date you'd accept, e.g. `2026-12-31` |
 | `LOCATION` | optional: an office name instead of `Point Grey` |
 | `EXAM_TYPE` | optional: `5-R-1` for Class 5 instead of Class 7 |
+| `SHOW_ALL_BEFORE` | optional, default `2026-12-01`: alerts list every slot before this date (see below) |
 
 Alerts go to every channel that's set up: SMS if the Twilio secrets exist,
 ntfy if `NTFY_TOPIC` exists.
@@ -52,7 +53,9 @@ about 1¢ per text.
 ## How it behaves
 - Checks every 15 minutes from 6:00am to 8:00pm Vancouver time, every day.
   GitHub sometimes starts runs a few minutes late. Manual runs work any time.
-- Sends one alert per batch of newly appeared slots, listing up to 8 of them.
+- Sends one alert per batch of newly appeared slots. It lists the 3 soonest,
+  or every slot before `SHOW_ALL_BEFORE` (Dec 1) if there are more than 3 of
+  those, up to 30.
   A slot that gets taken and then frees up again alerts again.
 - If an alert fails to send, those slots are retried on the next check.
 - If anything breaks (wrong keyword, ICBC changes its site or data, ICBC blocks
