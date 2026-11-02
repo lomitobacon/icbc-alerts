@@ -2,9 +2,10 @@ name: Check ICBC road test slots
 
 on:
   schedule:
-    # Every 15 min. Cron is UTC, so this covers 6am-8pm Pacific in both PST and
-    # PDT; the "Within active hours?" step skips runs outside that window.
-    - cron: "*/15 0-4,13-23 * * *"
+    # Every 15 min, off the top of the hour (GitHub drops more runs at :00).
+    # Cron is UTC; Vancouver is UTC-7 all year, so 13:00-03:59 UTC covers 6am-8pm.
+    # The "Within active hours?" step skips runs outside that window.
+    - cron: "7,22,37,52 0-3,13-23 * * *"
   workflow_dispatch:         # "Run workflow" button for a manual check (any time)
     inputs:
       summary:
@@ -38,7 +39,7 @@ jobs:
       - name: Within active hours?
         id: gate
         # Scheduled runs only check 6:00am-8:00pm Vancouver time. GitHub often
-        # starts runs a few minutes late, so the 8:00pm run is allowed until 8:14.
+        # starts runs a few minutes late, so runs are allowed until 8:14pm.
         run: |
           now=$(TZ=America/Vancouver date +%H%M)
           if [ "${{ github.event_name }}" != schedule ] || { [ "$now" -ge 0600 ] && [ "$now" -le 2014 ]; }; then
