@@ -29,6 +29,10 @@ jobs:
           ICBC_LAST_NAME: ${{ secrets.ICBC_LAST_NAME }}
           ICBC_LICENCE: ${{ secrets.ICBC_LICENSE_NUMBER }}
           ICBC_KEYWORD: ${{ secrets.ICBC_SECRET_WORD }}
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_FROM: ${{ secrets.TWILIO_FROM }}
+          SMS_TO: ${{ secrets.SMS_TO }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           END_DATE: ${{ vars.END_DATE }}
           LOCATION: ${{ vars.LOCATION || 'Point Grey' }}

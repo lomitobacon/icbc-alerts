@@ -1,88 +1,70 @@
 # ICBC road test slot alerts
 
 Checks ICBC Point Grey for Class 7 road test openings every few minutes on
-GitHub Actions. When a slot appears between today and your end date, your
-phone gets an ntfy push; tapping it opens the ICBC booking site. The checker
-only reads. It never books, so you book the slot yourself.
+GitHub Actions. When a slot appears between today and your end date, it texts
+each phone number you list. The checker only reads. It never books, so you book
+the slot yourself.
 
-## Setup (about 10 minutes)
+Repo: https://github.com/lomitobacon/icbc-alerts
 
-### 1. Phone alerts
-1. Install **ntfy** from the App Store or Google Play.
-2. Tap **+** and subscribe to a topic name that nobody could guess, e.g.
-   `icbc-howard-8f3k2q9z`. Anyone who knows the name can read your alerts,
-   so make it random.
-3. On iPhone, allow notifications for ntfy.
+## Settings
+Repo → **Settings → Secrets and variables → Actions**.
 
-### 2. GitHub repo
-1. On github.com, create a new repository, e.g. `icbc-alerts`.
-   Make it **Public**. Public repos get unlimited free Actions minutes, while a
-   private repo would use up its free 2,000 minutes in about a week. Your login
-   details are stored as encrypted Secrets, which are never visible, even in a
-   public repo.
-2. Upload these files, keeping the folder structure:
-   - `check_slots.py`
-   - `.github/workflows/check.yml`
-   - `.gitignore`
-   - `README.md`
-
-   The simplest way is **Add file → Upload files**, then drag in the files.
-   `.github` is a hidden folder on a Mac: press **Cmd+Shift+.** in Finder to
-   show it.
-
-### 3. Secrets (your ICBC login)
-Repo → **Settings → Secrets and variables → Actions → Secrets → New repository secret**.
-Add four:
+**Secrets**
 
 | Name | Value |
 |---|---|
 | `ICBC_LAST_NAME` | your last name |
 | `ICBC_LICENSE_NUMBER` | your driver's licence number |
 | `ICBC_SECRET_WORD` | your ICBC keyword |
-| `NTFY_TOPIC` | your ntfy topic name from step 1 |
+| `TWILIO_ACCOUNT_SID` | from the Twilio console, starts with `AC` |
+| `TWILIO_AUTH_TOKEN` | from the Twilio console |
+| `TWILIO_FROM` | your Twilio phone number, e.g. `+16045550100` |
+| `SMS_TO` | numbers to text, comma-separated, e.g. `+16045551111,+16045552222` |
+| `NTFY_TOPIC` | optional: an ntfy topic for app push alerts too. Delete this secret to turn ntfy off. |
 
-### 4. Your date range
-Same page, **Variables** tab → **New repository variable**:
+**Variables**
 
 | Name | Value |
 |---|---|
-| `END_DATE` | the latest date you'd accept, e.g. `2026-11-30` |
+| `END_DATE` | the latest date you'd accept, e.g. `2026-12-31` |
+| `LOCATION` | optional: an office name instead of `Point Grey` |
+| `EXAM_TYPE` | optional: `5-R-1` for Class 5 instead of Class 7 |
 
-It alerts for any slot from today up to and including that date. To change the
-range later, just edit this variable.
+Alerts go to every channel that's set up: SMS if the Twilio secrets exist,
+ntfy if `NTFY_TOPIC` exists.
 
-Optional variables:
-- `LOCATION`: an office name to watch instead of `Point Grey`.
-- `EXAM_TYPE`: use `5-R-1` for Class 5 instead of Class 7.
+## Twilio setup
+1. Sign up at https://www.twilio.com/try-twilio. The trial includes free credit.
+2. In the console, **Phone Numbers → Buy a number**. Pick a **Canada (+1 604)**
+   number with SMS. A Canadian number avoids the US registration rules for
+   texting.
+3. **Phone Numbers → Verified Caller IDs → Add**: verify every number in
+   `SMS_TO`. Each person gets a code by text. Trial accounts can only text
+   verified numbers.
+4. Copy the **Account SID** and **Auth Token** from the console home page into
+   the secrets above.
 
-### 5. Test it
-Repo → **Actions** tab → enable workflows if asked → **Check ICBC road test
-slots** → **Run workflow**. After about 3 minutes, open the run. A working run
-logs something like:
-
-```
-2026-11-02 14:05 Vancouver (Point Grey): 214 open, 3 on or before 2026-11-30, 3 new
-```
-
-The first run sends a push for every slot already in your range. After that,
-you only get pushes for slots that newly appear.
+Trial texts start with "Sent from your Twilio trial account". Upgrading (adding
+a card) removes that, and costs roughly $1.50 CAD/month for the number plus
+about 1¢ per text.
 
 ## How it behaves
 - Runs every 5 minutes, checking twice per run (2.5 min apart). GitHub often
   delays scheduled runs, so expect a check every few minutes most of the time,
   with occasional gaps of 10–20 minutes.
-- One push per newly appeared slot. A slot that gets taken and then frees up
-  again triggers another push.
+- Sends one text per batch of newly appeared slots, listing up to 8 of them.
+  A slot that gets taken and then frees up again alerts again.
+- If a text fails to send, those slots are retried on the next check.
 - If checks start failing (wrong keyword, ICBC changes something, ICBC blocks
-  GitHub), you get a single "ICBC checker failing" push, then a "working again"
-  push once it recovers. GitHub also emails you about failed runs.
+  GitHub), you get one "ICBC checker failing" text, then a "working again"
+  text once it recovers. GitHub also emails you about failed runs.
+- To check by hand: **Actions** tab → **Check ICBC road test slots** →
+  **Run workflow**.
 
 ## Things to know
 - **GitHub pauses scheduled workflows after 60 days with no repo activity.**
-  Editing `END_DATE` doesn't count as activity, but any commit does (e.g. editing
-  this README).
+  Editing `END_DATE` doesn't count as activity, but any commit does.
 - **To stop it:** Actions tab → the workflow → **⋯ → Disable workflow**.
 - Automated checking may go against ICBC's terms of use. This checks gently and
   never books, but that risk is yours to judge.
-- If GitHub's schedule turns out too slow to catch same-week cancellations,
-  the same script can run every 1–2 minutes on a small server.

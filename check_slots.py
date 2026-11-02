@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Check ICBC for open road-test slots and push new ones to ntfy.
+"""Check ICBC for open road-test slots and alert by SMS (Twilio) and/or ntfy.
 
 Read-only: logs in, lists available appointments, never books anything.
 Uses only the Python standard library.
 
 Environment:
   ICBC_LAST_NAME, ICBC_LICENCE, ICBC_KEYWORD   login (GitHub Secrets)
-  NTFY_TOPIC                                   ntfy topic name (GitHub Secret)
+  TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN,
+  TWILIO_FROM, SMS_TO                          SMS alerts; SMS_TO is comma-separated
+  NTFY_TOPIC                                   ntfy push alerts
+  Alerts go to every channel that is configured.
   END_DATE        last acceptable test date, YYYY-MM-DD (required)
   LOCATION        office name to match, default "Point Grey"
   EXAM_TYPE       default "7-R-1" (Class 7). Class 5 is "5-R-1".
@@ -15,17 +18,20 @@ Environment:
   CHECK_INTERVAL  seconds between checks in one run, default 150
 """
 
+import base64
 import json
 import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 API = os.environ.get("ICBC_API", "https://onlinebusiness.icbc.com/deas-api/v1")
 NTFY = os.environ.get("NTFY_SERVER", "https://ntfy.sh")
+TWILIO = os.environ.get("TWILIO_API", "https://api.twilio.com")
 BOOKING_URL = "https://onlinebusiness.icbc.com/webdeas-ui/home"
 TZ = ZoneInfo("America/Vancouver")
 HEADERS = {
@@ -132,15 +138,51 @@ def describe(day, start):
     return f"{d:%a %b %-d} at {t}"
 
 
-def notify(title, message, priority="high", tags="rotating_light"):
+def send_ntfy(title, message, priority, tags):
     req = urllib.request.Request(
         f"{NTFY}/{env('NTFY_TOPIC')}",
-        data=message.encode(),
+        data=f"{message}\n\nTap to open ICBC booking.".encode(),
         headers={"Title": title, "Priority": priority, "Tags": tags, "Click": BOOKING_URL},
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=30):
         pass
+
+
+def send_sms(title, message):
+    sid = env("TWILIO_ACCOUNT_SID")
+    auth = base64.b64encode(f"{sid}:{env('TWILIO_AUTH_TOKEN')}".encode()).decode()
+    body = f"{title}\n{message}\nBook: {BOOKING_URL}"
+    for to in env("SMS_TO").split(","):
+        req = urllib.request.Request(
+            f"{TWILIO}/2010-04-01/Accounts/{sid}/Messages.json",
+            data=urllib.parse.urlencode({"To": to.strip(), "From": env("TWILIO_FROM"), "Body": body}).encode(),
+            headers={"Authorization": f"Basic {auth}"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30):
+            pass
+
+
+def notify(title, message, priority="high", tags="rotating_light"):
+    """Send to every configured channel; raise CheckError if any fails."""
+    channels = []
+    if os.environ.get("NTFY_TOPIC", "").strip():
+        channels.append(("ntfy", lambda: send_ntfy(title, message, priority, tags)))
+    if os.environ.get("TWILIO_ACCOUNT_SID", "").strip():
+        channels.append(("SMS", lambda: send_sms(title, message)))
+    if not channels:
+        raise CheckError("No alert channel set up (add the Twilio or NTFY_TOPIC secrets)")
+    errors = []
+    for name, send in channels:
+        try:
+            send()
+        except urllib.error.HTTPError as e:
+            errors.append(f"{name}: HTTP {e.code} {e.read().decode(errors='replace')[:200]}")
+        except (urllib.error.URLError, CheckError) as e:
+            errors.append(f"{name}: {e}")
+    if errors:
+        raise CheckError("Alert failed: " + "; ".join(errors))
 
 
 def load_state(path):
@@ -172,19 +214,21 @@ def check_once(state):
     wanted = [s for s in slots if today <= date.fromisoformat(s[0]) <= end_date]
     seen = {tuple(s) for s in state.get("seen", [])}
     new = [s for s in wanted if s not in seen]
-    # Remember only slots still open, so a slot that is taken and freed again alerts again.
-    state["seen"] = [list(s) for s in wanted]
 
     print(f"{datetime.now(TZ):%Y-%m-%d %H:%M} {state['pos_name']}: "
           f"{len(slots)} open, {len(wanted)} on or before {end_date}, {len(new)} new")
     if new:
-        lines = [describe(*s) for s in new[:15]]
-        if len(new) > 15:
-            lines.append(f"...and {len(new) - 15} more")
+        # Kept short so a text stays within a few SMS segments.
+        lines = [describe(*s) for s in new[:8]]
+        if len(new) > 8:
+            lines.append(f"...and {len(new) - 8} more")
         notify(
-            f"{len(new)} new road test slot{'s' if len(new) > 1 else ''} at {state['pos_name']}",
-            "\n".join(lines) + "\n\nTap to open ICBC booking.",
+            f"ICBC: {len(new)} new road test slot{'s' if len(new) > 1 else ''} at {location}",
+            "\n".join(lines),
         )
+    # Remember only slots still open, so a slot that is taken and freed again alerts again.
+    # Saved after alerting, so a failed alert is retried on the next check.
+    state["seen"] = [list(s) for s in wanted]
 
 
 def main():
