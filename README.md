@@ -51,8 +51,14 @@ a card) removes that, and costs roughly $1.50 CAD/month for the number plus
 about 1¢ per text.
 
 ## How it behaves
-- Checks every 15 minutes from 6:00am to 8:00pm Vancouver time, every day.
-  GitHub sometimes starts runs a few minutes late. Manual runs work any time.
+- Checks every 15 minutes from 6:00am to 7:45pm Vancouver time, every day.
+  The timer is a cron-job.org job ("ICBC slot checker") that presses "Run
+  workflow" through GitHub's API, because GitHub's own scheduler never started
+  for this repo. The GitHub schedule is still in the workflow as a backup.
+- cron-job.org emails you if triggering fails twice in a row. Its GitHub token
+  ("icbc cron", Actions access to this repo only) **expires Jan 31, 2027**.
+  To renew it, make a new token the same way and paste it into the job's
+  Authorization header after `Bearer `.
 - Sends one alert per batch of newly appeared slots. It lists the 3 soonest,
   or every slot before `SHOW_ALL_BEFORE` (Dec 1) if there are more than 3 of
   those, up to 30.
