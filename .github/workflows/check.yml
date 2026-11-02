@@ -1,0 +1,45 @@
+name: Check ICBC road test slots
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # GitHub's fastest; real runs often come every 5-15 min
+  workflow_dispatch:         # "Run workflow" button for a manual check
+
+concurrency:
+  group: icbc-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore seen slots
+        uses: actions/cache/restore@v4
+        with:
+          path: state.json
+          key: icbc-state-${{ github.run_id }}
+          restore-keys: icbc-state-
+
+      - name: Check for slots
+        run: python3 check_slots.py
+        env:
+          ICBC_LAST_NAME: ${{ secrets.ICBC_LAST_NAME }}
+          ICBC_LICENCE: ${{ secrets.ICBC_LICENCE }}
+          ICBC_KEYWORD: ${{ secrets.ICBC_KEYWORD }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          END_DATE: ${{ vars.END_DATE }}
+          LOCATION: ${{ vars.LOCATION || 'Point Grey' }}
+          EXAM_TYPE: ${{ vars.EXAM_TYPE || '7-R-1' }}
+          # Two checks per run, 2.5 min apart, to fill the gaps between scheduled runs.
+          CHECKS: "2"
+          CHECK_INTERVAL: "150"
+
+      - name: Save seen slots
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: state.json
+          key: icbc-state-${{ github.run_id }}
